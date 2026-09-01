@@ -4,8 +4,8 @@ services:
     name: recoveriq-backend
     env: node
     plan: free
-    buildCommand: npm install && npm run build -w @recoveriq/shared && npm run build -w backend && npm run db:generate -w backend && npm run db:push -w backend && npm run db:seed -w backend
-    startCommand: npm run start -w backend
+    buildCommand: npm install && npm run build -w @recoveriq/shared && npm run build -w backend && npm run db:generate -w backend
+    startCommand: npx prisma db push --schema=backend/prisma/schema.prisma && npx tsx backend/prisma/seed/index.ts && npm run start -w backend
     envVars:
       - key: NODE_ENV
         value: production
