@@ -8,10 +8,23 @@ import { z } from 'zod';
 const absDbPath = resolve(__dirname, '../../prisma/dev.db').replace(/\\/g, '/');
 const defaultDbPath = `file:${absDbPath}`;
 
+function resolveDbUrl(url?: string): string {
+  if (!url) return defaultDbPath;
+  if (url.startsWith('file:.')) {
+    const relPath = url.slice(5);
+    const fullPath = resolve(__dirname, '../../..', relPath).replace(/\\/g, '/');
+    return `file:${fullPath}`;
+  }
+  return url;
+}
+
+const dbUrl = resolveDbUrl(process.env.DATABASE_URL);
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(4000),
   DATABASE_URL: z.string().default(defaultDbPath),
+  CORS_ORIGIN: z.string().default('*'),
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
@@ -33,7 +46,7 @@ const envSchema = z.object({
 
 const parsed = envSchema.safeParse({
   ...process.env,
-  DATABASE_URL: defaultDbPath,
+  DATABASE_URL: dbUrl,
 });
 
 export const env = parsed.success

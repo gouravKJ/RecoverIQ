@@ -23,8 +23,9 @@ import {
 
 const app = express();
 
-app.use(helmet());
-app.use(cors({ origin: ['http://localhost:3000', 'http://127.0.0.1:3000'] }));
+app.use(helmet({ contentSecurityPolicy: false }));
+const corsOrigin = env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(',').map((s) => s.trim());
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 
 app.use('/api/v1/webhooks', webhooksRouter);
