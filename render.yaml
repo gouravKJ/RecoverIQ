@@ -4,9 +4,11 @@ services:
     name: recoveriq-backend
     env: node
     plan: free
-    buildCommand: npm install && npm run build -w @recoveriq/shared && npm run build -w backend && npm run db:generate -w backend
+    buildCommand: npm install && npm run build -w @recoveriq/shared && npm run build -w backend && npx prisma generate --schema=backend/prisma/schema.prisma
     startCommand: npx prisma db push --schema=backend/prisma/schema.prisma && npx tsx backend/prisma/seed/index.ts && npm run start -w backend
     envVars:
+      - key: NODE_VERSION
+        value: "20.18.0"
       - key: NODE_ENV
         value: production
       - key: PORT
@@ -26,6 +28,8 @@ services:
     buildCommand: npm install && npm run build -w @recoveriq/shared && npm run build -w frontend
     startCommand: npm run start -w frontend
     envVars:
+      - key: NODE_VERSION
+        value: "20.18.0"
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_API_BASE_URL
