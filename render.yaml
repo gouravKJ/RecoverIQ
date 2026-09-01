@@ -1,0 +1,32 @@
+services:
+  # 1. RecoverIQ Backend Service
+  - type: web
+    name: recoveriq-backend
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build -w @recoveriq/shared && npm run build -w backend && npm run db:generate -w backend && npm run db:push -w backend && npm run db:seed -w backend
+    startCommand: npm run start -w backend
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: EXECUTOR_MODE
+        value: hybrid
+      - key: DEMO_FORCE_SCENARIO_OUTCOMES
+        value: "true"
+      - key: DATABASE_URL
+        value: "file:./backend/prisma/dev.db"
+
+  # 2. RecoverIQ Frontend Web Service
+  - type: web
+    name: recoveriq-frontend
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build -w @recoveriq/shared && npm run build -w frontend
+    startCommand: npm run start -w frontend
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://recoveriq-backend.onrender.com/api/v1

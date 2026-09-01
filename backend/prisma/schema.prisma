@@ -1,0 +1,326 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum TransactionType {
+  payment
+  subscription
+}
+
+enum TransactionStatus {
+  failed
+  authorized
+  captured
+  recovered
+  pending
+  escalated
+  closed
+  no_action
+  blocked
+}
+
+enum TransactionSource {
+  webhook
+  batch
+  sync
+}
+
+enum RootCause {
+  temporary_bank_issue
+  insufficient_funds
+  mandate_expired
+  network_timeout
+  suspected_abandonment
+  repeated_failure
+  unknown
+}
+
+enum RecoveryAction {
+  retry
+  send_reminder
+  offer_discount
+  escalate_human
+  do_nothing
+}
+
+enum PolicyResult {
+  PASS
+  BLOCK
+}
+
+enum ExecutorType {
+  razorpay
+  demo
+}
+
+enum ExecutionMode {
+  REAL_TEST_MODE
+  DEMO_SIMULATED
+}
+
+enum ExecutionStatus {
+  pending
+  success
+  failed
+  skipped
+}
+
+enum RiskOutcome {
+  at_risk
+  recovered
+  abandoned
+  do_nothing
+  escalated
+  blocked
+}
+
+enum FinalStatus {
+  recovered
+  failed
+  blocked
+  do_nothing
+  escalated
+  pending
+}
+
+enum BatchRunStatus {
+  running
+  completed
+  failed
+}
+
+model MerchantPolicy {
+  id                        String   @id @default(uuid())
+  maxRetries                Int      @default(2) @map("max_retries")
+  maxReminders              Int      @default(2) @map("max_reminders")
+  minReminderIntervalMin    Int      @default(30) @map("min_reminder_interval_min")
+  maxDiscountPercentage     Decimal  @default(5) @map("max_discount_percentage")
+  humanApprovalAbove        BigInt   @default(1000000) @map("human_approval_above")
+  neverContactOptedOut      Boolean  @default(true) @map("never_contact_opted_out")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  @@map("merchant_policy")
+}
+
+model Customer {
+  id                     String   @id
+  lifetimeValue          BigInt   @default(0) @map("lifetime_value")
+  totalTransactions      Int      @default(0) @map("total_transactions")
+  successfulTransactions Int      @default(0) @map("successful_transactions")
+  failedTransactions     Int      @default(0) @map("failed_transactions")
+  successRate            Decimal  @default(0) @map("success_rate")
+  averageTransactionValue BigInt  @default(0) @map("average_transaction_value")
+  preferredPaymentMethod String  @default("unknown") @map("preferred_payment_method")
+  previousRetryCount     Int      @default(0) @map("previous_retry_count")
+  optedOut               Boolean  @default(false) @map("opted_out")
+  computedAt             DateTime @default(now()) @map("computed_at")
+  transactions           Transaction[]
+
+  @@map("customers")
+}
+
+model Transaction {
+  id                     String            @id
+  razorpayPaymentId      String?           @unique @map("razorpay_payment_id")
+  razorpayOrderId        String?           @map("razorpay_order_id")
+  razorpaySubscriptionId String?           @map("razorpay_subscription_id")
+  customerId             String            @map("customer_id")
+  amount                 BigInt
+  currency               String            @default("INR")
+  paymentMethod          String            @map("payment_method")
+  failureReasonCode      String?           @map("failure_reason_code")
+  failureDescription     String?           @map("failure_description")
+  timestamp              DateTime
+  retryCount             Int               @default(0) @map("retry_count")
+  reminderCount          Int               @default(0) @map("reminder_count")
+  lastReminderAt         DateTime?         @map("last_reminder_at")
+  type                   TransactionType
+  status                 TransactionStatus
+  source                 TransactionSource
+  isDemoAnchor           Boolean           @default(false) @map("is_demo_anchor")
+  demoScenario           String?           @map("demo_scenario")
+  processed              Boolean           @default(false)
+  metadata               Json?
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+
+  customer         Customer          @relation(fields: [customerId], references: [id])
+  riskRecord       RiskRecord?
+  diagnosis        Diagnosis?
+  recoveryDecision RecoveryDecision?
+  recoveryOutcome  RecoveryOutcome?
+  auditEvents      AuditEvent[]
+  llmAnalyses      LLMAnalysis[]
+
+  @@index([status])
+  @@index([customerId])
+  @@index([processed])
+  @@map("transactions")
+}
+
+model RiskRecord {
+  id            String      @id @default(uuid())
+  transactionId String      @unique @map("transaction_id")
+  atRiskAmount  BigInt      @map("at_risk_amount")
+  detectedAt    DateTime    @default(now()) @map("detected_at")
+  resolvedAt    DateTime?   @map("resolved_at")
+  outcome       RiskOutcome @default(at_risk)
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@map("risk_records")
+}
+
+model Diagnosis {
+  id            String    @id @default(uuid())
+  transactionId String    @unique @map("transaction_id")
+  cause         RootCause
+  confidence    Decimal
+  signals       Json
+  explanation   String
+  classifiedAt  DateTime  @default(now()) @map("classified_at")
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@map("diagnoses")
+}
+
+model RecoveryDecision {
+  id                 String           @id @default(uuid())
+  transactionId      String           @unique @map("transaction_id")
+  selectedAction     RecoveryAction   @map("selected_action")
+  selectedEv         Decimal          @map("selected_ev")
+  recoverableAmount  BigInt           @map("recoverable_amount")
+  reasoningText      String           @map("reasoning_text")
+  decidedAt          DateTime         @default(now()) @map("decided_at")
+  transaction        Transaction      @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  candidateActions   CandidateAction[]
+  policyDecision     PolicyDecision?
+  executions         Execution[]
+
+  @@map("recovery_decisions")
+}
+
+model CandidateAction {
+  id                  String         @id @default(uuid())
+  decisionId          String         @map("decision_id")
+  action              RecoveryAction
+  recoveryProbability Decimal        @map("recovery_probability")
+  recoverableAmount   BigInt         @map("recoverable_amount")
+  interventionCost    Decimal        @map("intervention_cost")
+  frictionCost        Decimal        @map("friction_cost")
+  expectedValue       Decimal        @map("expected_value")
+  discountPct         Decimal?       @map("discount_pct")
+  isSelected          Boolean        @default(false) @map("is_selected")
+  decision            RecoveryDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_actions")
+}
+
+model PolicyDecision {
+  id              String         @id @default(uuid())
+  decisionId      String         @unique @map("decision_id")
+  requestedAction String         @map("requested_action")
+  requestedParams Json           @map("requested_params")
+  result          PolicyResult
+  blockReason     String?        @map("block_reason")
+  checkedAt       DateTime       @default(now()) @map("checked_at")
+  decision        RecoveryDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  @@map("policy_decisions")
+}
+
+model Execution {
+  id                String          @id @default(uuid())
+  decisionId        String          @map("decision_id")
+  action            RecoveryAction
+  executorType      ExecutorType    @map("executor_type")
+  executionMode     ExecutionMode   @map("execution_mode")
+  idempotencyKey    String          @unique @map("idempotency_key")
+  status            ExecutionStatus
+  razorpayReference String?         @map("razorpay_reference")
+  errorCode         String?         @map("error_code")
+  errorMessage      String?         @map("error_message")
+  attemptNumber     Int             @map("attempt_number")
+  executedAt        DateTime        @default(now()) @map("executed_at")
+  decision          RecoveryDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  @@map("executions")
+}
+
+model RecoveryOutcome {
+  id              String      @id @default(uuid())
+  transactionId   String      @unique @map("transaction_id")
+  finalStatus     FinalStatus @map("final_status")
+  recoveredAmount BigInt      @default(0) @map("recovered_amount")
+  stoppingReason  String      @map("stopping_reason")
+  verifiedAt      DateTime    @default(now()) @map("verified_at")
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@map("recovery_outcomes")
+}
+
+model AuditEvent {
+  id            String   @id @default(uuid())
+  transactionId String?  @map("transaction_id")
+  eventType     String   @map("event_type")
+  payload       Json
+  executionMode String?  @map("execution_mode")
+  createdAt     DateTime @default(now()) @map("created_at")
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([transactionId, createdAt])
+  @@index([eventType])
+  @@map("audit_events")
+}
+
+model BatchRun {
+  id          String         @id @default(uuid())
+  recordCount Int            @map("record_count")
+  sourceFile  String         @map("source_file")
+  startedAt   DateTime       @default(now()) @map("started_at")
+  completedAt DateTime?      @map("completed_at")
+  status      BatchRunStatus @default(running)
+
+  @@map("batch_runs")
+}
+
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique @map("event_id")
+  eventType   String   @map("event_type")
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@map("webhook_events")
+}
+
+enum AnalysisType {
+  FAILURE_ANALYSIS
+  CUSTOMER_INTELLIGENCE
+  RECOVERY_RECOMMENDATION
+  PATTERN_DETECTION
+  DECISION_EXPLANATION
+}
+
+model LLMAnalysis {
+  id            String       @id @default(uuid())
+  transactionId String?      @map("transaction_id")
+  batchRunId    String?      @map("batch_run_id")
+  analysisType  AnalysisType @map("analysis_type")
+  provider      String       @default("Groq")
+  model         String       @default("openai/gpt-oss-20b")
+  inputHash     String?      @map("input_hash")
+  outputJson    Json         @map("output_json")
+  confidence    Decimal      @default(0.0)
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+  @@index([batchRunId])
+  @@index([analysisType])
+  @@map("llm_analyses")
+}
