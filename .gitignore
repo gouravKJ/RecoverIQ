@@ -6,5 +6,5 @@ dist/
 *.log
 coverage/
 .turbo/
-prisma/*.db
+*.db
 *.db-journal
