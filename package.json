@@ -10,12 +10,17 @@
   "scripts": {
     "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run build -w @recoveriq/shared && npm run build -w backend && npm run build -w frontend",
+    "build:backend": "npm run build -w @recoveriq/shared && npm run build -w backend && npx prisma generate --schema=backend/prisma/schema.prisma",
+    "build:frontend": "npm run build -w @recoveriq/shared && npm run build -w frontend",
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "npx prisma db push --schema=backend/prisma/schema.prisma && npx tsx backend/prisma/seed/index.ts && npm run start -w backend",
+    "start:frontend": "npm run start -w frontend",
     "test": "npm run test -w backend",
     "db:up": "docker compose up -d",
     "db:migrate": "npm run db:migrate -w backend",
     "db:seed": "npm run db:seed -w backend"
   },
-  "devDependencies": {
+  "dependencies": {
     "concurrently": "^9.1.2"
   }
 }
