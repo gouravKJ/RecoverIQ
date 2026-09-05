@@ -9,8 +9,9 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
-    "build": "npm run build -w @recoveriq/shared && npm run build -w backend && npm run build -w frontend",
-    "build:backend": "npm run build -w @recoveriq/shared && npm run build -w backend && npx prisma generate --schema=backend/prisma/schema.prisma",
+    "postinstall": "prisma generate --schema=backend/prisma/schema.prisma",
+    "build": "npm run build -w @recoveriq/shared && npx prisma generate --schema=backend/prisma/schema.prisma && npm run build -w backend && npm run build -w frontend",
+    "build:backend": "npm run build -w @recoveriq/shared && npx prisma generate --schema=backend/prisma/schema.prisma && npm run build -w backend",
     "build:frontend": "npm run build -w @recoveriq/shared && npm run build -w frontend",
     "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
     "start:backend": "npx prisma db push --schema=backend/prisma/schema.prisma && npx tsx backend/prisma/seed/index.ts && npm run start -w backend",
