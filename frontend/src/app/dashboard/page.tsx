@@ -86,7 +86,7 @@ export default async function DashboardPage() {
           </div>
           <p className="text-sm">{error}</p>
           <div className="mt-4 p-4 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-400 font-mono space-y-1">
-            <p>1. Ensure backend is running on http://localhost:4000</p>
+            <p>1. Ensure backend service is running and NEXT_PUBLIC_API_BASE_URL is set correctly in environment variables.</p>
             <p>2. Load synthetic batch via POST /api/v1/batch/load or click "Load Batch" in top bar.</p>
           </div>
         </div>
